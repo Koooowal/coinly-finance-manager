@@ -1,177 +1,138 @@
+import { calculateBudgetStatus, calculateGoalProgress, calculateNetBalance } from '../utils/financeUtils.js';
+import { formatResponse, formatPaginatedResponse } from '../utils/responseFormatter.js';
+import { generateToken, verifyToken, decodeToken } from '../utils/jwt.js';
+import { hashPassword, comparePassword } from '../utils/bcrypt.js';
 
-function calculateBudgetStatus(spent, limit) {
-  if (limit <= 0) return 'invalid';
-  const percentage = (spent / limit) * 100;
-  if (percentage > 100) return 'exceeded';
-  if (percentage >= 80) return 'warning';
-  return 'ok';
-}
+// ─── financeUtils ────────────────────────────────────────────────────────────
 
-function calculateGoalProgress(current, target) {
-  if (target <= 0) return 0;
-  const progress = (current / target) * 100;
-  return Math.min(progress, 100); 
-}
-
-
-function validateTransaction(data) {
-  const errors = [];
-  
-  if (!data.amount || data.amount <= 0) {
-    errors.push('Kwota musi być większa od 0');
-  }
-  if (!data.account_id) {
-    errors.push('Konto jest wymagane');
-  }
-  if (!data.type || !['income', 'expense', 'transfer'].includes(data.type)) {
-    errors.push('Nieprawidłowy typ transakcji');
-  }
-  if (!data.date) {
-    errors.push('Data jest wymagana');
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors
-  };
-}
-
-function calculateNetBalance(income, expenses) {
-  return parseFloat(income || 0) - parseFloat(expenses || 0);
-}
-
-
-
-describe('calculateBudgetStatus - status budżetu', () => {
-  test('zwraca "ok" przy 50% wykorzystania', () => {
+describe('calculateBudgetStatus', () => {
+  test('returns "ok" when under 80% used', () => {
     expect(calculateBudgetStatus(500, 1000)).toBe('ok');
-  });
-
-  test('zwraca "ok" przy 79% wykorzystania', () => {
     expect(calculateBudgetStatus(790, 1000)).toBe('ok');
   });
 
-  test('zwraca "warning" przy dokładnie 80%', () => {
+  test('returns "warning" at exactly 80%', () => {
     expect(calculateBudgetStatus(800, 1000)).toBe('warning');
   });
 
-  test('zwraca "warning" przy 95% wykorzystania', () => {
+  test('returns "warning" between 80% and 100%', () => {
     expect(calculateBudgetStatus(950, 1000)).toBe('warning');
   });
 
-  test('zwraca "exceeded" przy 100% wykorzystania', () => {
-    expect(calculateBudgetStatus(1000, 1000)).toBe('warning');
-  });
-
-  test('zwraca "exceeded" przy przekroczeniu limitu', () => {
+  test('returns "exceeded" when over the limit', () => {
+    expect(calculateBudgetStatus(1001, 1000)).toBe('exceeded');
     expect(calculateBudgetStatus(1500, 1000)).toBe('exceeded');
   });
 
-  test('zwraca "invalid" dla zerowego limitu', () => {
+  test('returns "invalid" for a zero or negative limit', () => {
     expect(calculateBudgetStatus(100, 0)).toBe('invalid');
+    expect(calculateBudgetStatus(100, -50)).toBe('invalid');
   });
 });
 
-
-describe('validateTransaction - walidacja transakcji', () => {
-  test('akceptuje poprawną transakcję', () => {
-    const data = {
-      amount: 100,
-      account_id: 1,
-      type: 'expense',
-      date: '2024-01-15'
-    };
-    const result = validateTransaction(data);
-    expect(result.valid).toBe(true);
-    expect(result.errors).toHaveLength(0);
+describe('calculateGoalProgress', () => {
+  test('returns correct percentage', () => {
+    expect(calculateGoalProgress(250, 1000)).toBe(25);
+    expect(calculateGoalProgress(1000, 1000)).toBe(100);
   });
 
-  test('odrzuca transakcję bez kwoty', () => {
-    const data = {
-      account_id: 1,
-      type: 'expense',
-      date: '2024-01-15'
-    };
-    const result = validateTransaction(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Kwota musi być większa od 0');
+  test('caps at 100 even when current exceeds target', () => {
+    expect(calculateGoalProgress(1500, 1000)).toBe(100);
   });
 
-  test('odrzuca transakcję z ujemną kwotą', () => {
-    const data = {
-      amount: -50,
-      account_id: 1,
-      type: 'expense',
-      date: '2024-01-15'
-    };
-    const result = validateTransaction(data);
-    expect(result.valid).toBe(false);
-  });
-
-  test('odrzuca transakcję bez konta', () => {
-    const data = {
-      amount: 100,
-      type: 'expense',
-      date: '2024-01-15'
-    };
-    const result = validateTransaction(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Konto jest wymagane');
-  });
-
-  test('odrzuca nieprawidłowy typ transakcji', () => {
-    const data = {
-      amount: 100,
-      account_id: 1,
-      type: 'invalid_type',
-      date: '2024-01-15'
-    };
-    const result = validateTransaction(data);
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain('Nieprawidłowy typ transakcji');
-  });
-
-  test('akceptuje typ income', () => {
-    const data = {
-      amount: 100,
-      account_id: 1,
-      type: 'income',
-      date: '2024-01-15'
-    };
-    expect(validateTransaction(data).valid).toBe(true);
-  });
-
-  test('akceptuje typ transfer', () => {
-    const data = {
-      amount: 100,
-      account_id: 1,
-      type: 'transfer',
-      date: '2024-01-15'
-    };
-    expect(validateTransaction(data).valid).toBe(true);
+  test('returns 0 for a zero or negative target', () => {
+    expect(calculateGoalProgress(500, 0)).toBe(0);
+    expect(calculateGoalProgress(500, -100)).toBe(0);
   });
 });
 
-
-describe('calculateNetBalance - bilans netto', () => {
-  test('oblicza dodatni bilans', () => {
+describe('calculateNetBalance', () => {
+  test('returns income minus expenses', () => {
     expect(calculateNetBalance(1000, 600)).toBe(400);
-  });
-
-  test('oblicza ujemny bilans', () => {
     expect(calculateNetBalance(500, 800)).toBe(-300);
-  });
-
-  test('oblicza zerowy bilans', () => {
     expect(calculateNetBalance(1000, 1000)).toBe(0);
   });
 
-  test('obsługuje null jako zero', () => {
+  test('treats null and undefined as zero', () => {
     expect(calculateNetBalance(null, 100)).toBe(-100);
-  });
-
-  test('obsługuje oba null jako zero', () => {
     expect(calculateNetBalance(null, null)).toBe(0);
+    expect(calculateNetBalance(undefined, undefined)).toBe(0);
   });
 });
 
+// ─── responseFormatter ───────────────────────────────────────────────────────
+
+describe('formatResponse', () => {
+  test('includes success flag and message', () => {
+    const res = formatResponse(true, 'Created');
+    expect(res.success).toBe(true);
+    expect(res.message).toBe('Created');
+  });
+
+  test('omits data key when data is null', () => {
+    const res = formatResponse(false, 'Not found', null);
+    expect(res).not.toHaveProperty('data');
+  });
+
+  test('includes data when provided', () => {
+    const res = formatResponse(true, 'OK', { id: 1 });
+    expect(res.data).toEqual({ id: 1 });
+  });
+});
+
+describe('formatPaginatedResponse', () => {
+  test('returns correct pagination metadata', () => {
+    const res = formatPaginatedResponse([1, 2, 3], 1, 10, 25);
+    expect(res.success).toBe(true);
+    expect(res.data.pagination.totalPages).toBe(3);
+    expect(res.data.pagination.hasMore).toBe(true);
+  });
+
+  test('hasMore is false on the last page', () => {
+    const res = formatPaginatedResponse([], 3, 10, 25);
+    expect(res.data.pagination.hasMore).toBe(false);
+  });
+});
+
+// ─── jwt ─────────────────────────────────────────────────────────────────────
+
+describe('generateToken / verifyToken / decodeToken', () => {
+  test('generates a token and verifies it successfully', () => {
+    const token = generateToken('user-1', 'test@coinly.pl', 'testuser');
+    const payload = verifyToken(token);
+    expect(payload.id).toBe('user-1');
+    expect(payload.email).toBe('test@coinly.pl');
+    expect(payload.username).toBe('testuser');
+  });
+
+  test('decodeToken returns payload without verifying signature', () => {
+    const token = generateToken('user-2', 'a@b.com', 'alice');
+    const decoded = decodeToken(token);
+    expect(decoded.id).toBe('user-2');
+  });
+
+  test('verifyToken throws on a tampered token', () => {
+    expect(() => verifyToken('this.is.not.valid')).toThrow();
+  });
+});
+
+// ─── bcrypt ──────────────────────────────────────────────────────────────────
+
+describe('hashPassword / comparePassword', () => {
+  test('hashed password is not equal to the original', async () => {
+    const hash = await hashPassword('mypassword123');
+    expect(hash).not.toBe('mypassword123');
+  });
+
+  test('comparePassword returns true for the correct password', async () => {
+    const hash = await hashPassword('securepass');
+    const result = await comparePassword('securepass', hash);
+    expect(result).toBe(true);
+  });
+
+  test('comparePassword returns false for a wrong password', async () => {
+    const hash = await hashPassword('securepass');
+    const result = await comparePassword('wrongpass', hash);
+    expect(result).toBe(false);
+  });
+});
