@@ -9,6 +9,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Koooowal/coinly-finance-manager/actions/workflows/ci.yml">
+    <img src="https://github.com/Koooowal/coinly-finance-manager/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js">
   <img src="https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express.js">
   <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React">
@@ -36,9 +42,9 @@
 
 ## 📖 About
 
-**Coinly** is a full-stack personal finance management application designed to help users take control of their financial life. Track income and expenses, set budgets, define savings goals, analyze financial trends through detailed reports, and automate recurring transactions.
+**Coinly** is a full-stack personal finance management application that helps users take control of their financial life. The goal was to build something genuinely useful end-to-end — not just a CRUD demo, but a complete product with authentication, budgeting logic, recurring transactions automated via cron jobs, and data export.
 
-Built as a Bachelor's Degree Project, Coinly demonstrates modern web development practices with a clean architecture separating frontend and backend concerns.
+The backend follows a layered architecture (routes → controllers → services → database), keeping business logic out of request handlers. The frontend is a React SPA with protected routing, context-based auth state, and a consistent API layer built on Axios.
 
 ---
 
@@ -332,6 +338,36 @@ npm start
 
 ---
 
+## 🏗 Architecture & Design Decisions
+
+### Backend — Layered Architecture
+
+The backend follows a three-layer separation:
+
+- **Routes** — define endpoints and apply validation middleware
+- **Controllers** — parse requests, call services, return responses
+- **Services** — contain all business logic, isolated from HTTP concerns
+
+This means controllers stay thin and business logic is independently testable. For example, `transactionService.js` handles filtering, aggregation, and balance updates without knowing anything about `req` or `res`.
+
+Recurring transactions are processed by a `node-cron` job rather than being triggered on the frontend — this ensures they execute even when no user is logged in.
+
+### Frontend — React SPA
+
+Authentication state is managed via React Context (`AuthContext`) so any component can access the current user and token without prop drilling. A `ProtectedRoute` wrapper redirects unauthenticated users before any protected page renders.
+
+All HTTP calls go through a shared Axios instance (`src/api/axios.js`) that automatically attaches the JWT from localStorage and handles 401 responses globally — so individual pages don't need to handle auth errors themselves.
+
+### Known Limitations & Planned Improvements
+
+Being honest about trade-offs is part of writing good software:
+
+- **Large page components** — pages like `ExpensesPage` and `ReportPage` currently handle both data fetching and rendering in a single component. The natural next step is extracting the API/state logic into custom hooks (`useExpenses`, `useReport`) to separate concerns and make the components easier to read and test.
+- **No TypeScript** — adding types would catch a class of bugs at compile time, especially around API response shapes. This is a planned migration.
+- **Limited test coverage** — backend utilities are tested; integration and component tests are missing. Given this is a solo project, the priority was shipping a working product first.
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -370,23 +406,21 @@ Coinly/
 │
 ├── Frontend/
 │   ├── public/               # Static assets
-│   │   ├── coinly.svg
-│   │   └── coinly.png
 │   ├── src/
-│   │   ├── api/              # API services
-│   │   │   ├── axios.js
+│   │   ├── api/              # Axios instance + service helpers
+│   │   │   ├── axios.js      # Shared instance with JWT interceptor
 │   │   │   └── dashboardService.js
-│   │   ├── Assets/           # Images and media
-│   │   ├── Components/       # Reusable components
+│   │   ├── assets/           # Images, logos
+│   │   ├── components/       # Reusable UI components
 │   │   │   ├── LeftBar/
 │   │   │   ├── StatCard/
 │   │   │   └── ProtectedRoute/
-│   │   ├── context/          # React contexts
+│   │   ├── context/          # Global state via React Context
 │   │   │   ├── AuthContext.jsx
 │   │   │   └── ThemeContext.jsx
-│   │   ├── Layouts/
+│   │   ├── layouts/          # Page shell with sidebar + Outlet
 │   │   │   └── MainLayout/
-│   │   ├── Routes/           # Page components
+│   │   ├── pages/            # One folder per route
 │   │   │   ├── DashboardPage/
 │   │   │   ├── ExpensesPage/
 │   │   │   ├── IncomesPage/
@@ -397,9 +431,10 @@ Coinly/
 │   │   │   ├── LoginPage/
 │   │   │   ├── RegisterPage/
 │   │   │   └── WelcomePage/
-│   │   ├── styles/
-│   │   ├── utils/
-│   │   ├── main.jsx          # Application entry point
+│   │   ├── styles/           # Global style overrides
+│   │   ├── utils/            # Shared helpers
+│   │   ├── App.jsx           # Router + provider setup
+│   │   ├── main.jsx          # Entry point
 │   │   └── index.css
 │   ├── index.html
 │   ├── vite.config.js
@@ -411,11 +446,6 @@ Coinly/
 ---
 
 ## 🖼 Screenshots
-
-<p align="center">
-  <em>Screenshots coming soon...</em>
-</p>
-
 
 ![Dashboard](images/1.png)
 ![Expenses](images/2.png)
@@ -435,25 +465,25 @@ npm test
 
 ---
 
-## 🤝 Contributing
+## 💡 What I Learned
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+Building Coinly end-to-end taught me things that tutorials don't cover:
+
+**Layered architecture pays off immediately.** Early on I put business logic directly in route handlers. As soon as I needed the same logic in two places (e.g. updating account balance after a transaction and after a recurring job ran), I had to refactor. Moving to controllers → services made that trivial and made the codebase significantly easier to reason about.
+
+**Global Axios interceptors are worth the upfront work.** I initially handled auth errors page by page. After the third copy-paste I extracted it into a single interceptor on the shared instance. Now every 401 is handled in one place and every page gets it for free.
+
+**State that lives in context needs to be designed, not just added.** `AuthContext` works well because it has a clear, single responsibility. `ThemeContext` is fine too. I made the mistake of considering putting too much into context early on — realising that most state belongs local to the component that uses it was a meaningful shift in how I think about React apps.
+
+**Cron jobs are deceptively simple until they're not.** Setting up `node-cron` to run recurring transactions took an hour. Making it idempotent (so a server restart doesn't double-execute), handling timezone edge cases, and writing the logic so it doesn't silently swallow errors — that took considerably longer.
+
+**Writing code you'll read later is a skill in itself.** Some of the page components in this project grew too large. Coming back to a 700-line file after two weeks is genuinely painful. The main thing I'd do differently is extract data-fetching logic into custom hooks from the start — not as an afterthought.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the ISC License.
-
----
-
-## 👤 Author
-
-**Bachelor's Degree Project**
+This project is licensed under the MIT License.
 
 ---
 
