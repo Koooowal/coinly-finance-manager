@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './budgetPage.css';
+import './BudgetPage.css';
 import axios from '../../api/axios';
 import { FaPlus, FaEdit, FaTrash, FaTimes } from 'react-icons/fa';
 import { showSuccess, showError } from '../../utils/toast';

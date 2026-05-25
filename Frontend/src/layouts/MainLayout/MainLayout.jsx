@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import './mainLayout.css';
-import LeftBar from '../../Components/LeftBar/leftBar';
+import './MainLayout.css';
+import LeftBar from '../../components/LeftBar/LeftBar';
 import { Outlet } from 'react-router';
 import { IoMenu } from "react-icons/io5";
 

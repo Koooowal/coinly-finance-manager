@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './dashboardPage.css';
+import './DashboardPage.css';
 import axios from '../../api/axios';
 import { 
   FaWallet, 

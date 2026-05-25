@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import './leftBar.css';
-import logo from '../../Assets/Logo/coinly.svg';
+import './LeftBar.css';
+import logo from '../../assets/logo/coinly.svg';
 import { Link, useNavigate, useLocation } from 'react-router';
 import { FaUserCircle } from "react-icons/fa";
 import { IoIosLogOut } from "react-icons/io";

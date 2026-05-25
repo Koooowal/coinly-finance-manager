@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './goalPage.css';
+import './GoalPage.css';
 import axios from '../../api/axios';
 import { FaPlus, FaEdit, FaTrash, FaTimes, FaCoins } from 'react-icons/fa';
 import { showSuccess, showError, showConfirm } from '../../utils/toast';

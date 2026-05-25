@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './profilePage.css';
+import './ProfilePage.css';
 import axios from '../../api/axios';
 import { FaPlus, FaEdit, FaTrash, FaUser, FaCog, FaWallet, FaTag, FaTimes } from 'react-icons/fa';
 import { showSuccess, showError } from '../../utils/toast';
